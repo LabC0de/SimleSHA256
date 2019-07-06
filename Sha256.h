@@ -2,10 +2,12 @@
 
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
 
 #ifndef Sha256GRG_H
 #define Sha256GRG_H
 
+// this is simply a helper struct for easy handeling like assignment and comparison
 struct SHA256Hash
 {
 	unsigned char Hash[32];
@@ -25,6 +27,25 @@ struct SHA256Hash
 		return true;
 	}
 
+	operator unsigned char*()
+	{
+		return Hash;
+	}
+
+	operator char*()
+	{
+		return (char*)Hash;
+	}
+
+	void print()
+	{
+		for (uint8_t i = 0; i < 32; i++)
+		{
+			// why printf? because std::cout << std::hex << H[i]; makes it so that all nubers from that point on are printet as hex.
+			printf("%02hhx", Hash[i] & 0xff);
+		}
+	}
+
 	SHA256Hash(unsigned char H[32])
 	{
 		for (uint8_t i = 0; i < 32; i++)
@@ -32,13 +53,50 @@ struct SHA256Hash
 			Hash[i] = H[i];
 		}
 	}
-
+	SHA256Hash()
+	{
+		memset(Hash, 0, 32);
+	}
 };
 
+// this converts a text sting into a hash (it will simply read 64 chars on from the provided pointer) so make sure there are 64 chars.
+SHA256Hash SHA256Read(const char* hash)
+{
+	// figured it was easier to convert a char to a hex value manually rather than splitting the parameter char array 
+	auto ctonib = [](char x) -> unsigned char
+	{
+		if (x >= '0' && x <= '9')
+		{
+			return x - '0';
+		}
+		else if (x >= 'a' && x <= 'f')
+		{
+			return x - 'a' + 10;
+		}
+		else if (x >= 'A' && x <= 'F')
+		{
+			return x - 'A' + 10;
+		}
+		else
+		{
+			return 0;
+		}
+	};
 
+	SHA256Hash ret;
 
+	for (uint8_t i = 0; i < 32; i++)
+	{
+		ret.Hash[i] = (ctonib(hash[2 * i]) << 4) | ctonib(hash[(2 * i) + 1]);
+	}
+
+	return ret;
+}
+
+// util namespace (so that the unneccessary minor helper functions aren't polluting the auto suggest - but are free for use if one wishes to)
 namespace SHA256Util
 {
+	// sha256 operates in a big endian fashion (and computers usually dont) so some byte swapping is appropriate
 	void byte_swap_64(uint64_t* thing)
 	{
 		uint64_t tmp = 0;
@@ -59,6 +117,7 @@ namespace SHA256Util
 		*thing = tmp;
 	}
 
+	// here are functions used in sha256 to calculate the intermediate hash values -> each one operates on a 32bit word and returns a 32bit word
 	inline uint32_t SHA256_Sn32(uint32_t x, uint8_t n)
 	{
 		return (x >> n) | (x << (32 - n));
@@ -100,12 +159,19 @@ namespace SHA256Util
 	}
 }
 
+// A helper function for objets, structs etc...
 template<typename T>
 SHA256Hash SHA256(T* data)
 {
 	return SHA256(data, sizeof(T));
 }
 
+/***
+ * This is my pretty naive implementation of the sha256 algorithm.
+ * It's intended to be a educational implementation where i simply follow the description:
+ * (https://www.iwar.org.uk/comsec/resources/cipher/sha256-384-512.pdf) bit by bit.
+ * 
+ */
 SHA256Hash SHA256(const void * data, const unsigned int size)
 {
 	// hash padding
@@ -114,13 +180,15 @@ SHA256Hash SHA256(const void * data, const unsigned int size)
 	unsigned int no_blocks = tmp_size / 64;
 	unsigned char* tM = new unsigned char[tmp_size];
 
-	// padding (currently poorly optimized -> can be made in the parsing itself)
+	// it wouldn't be necessary to act on the heap but so you can look at the memory when its finished padding and disect it better.
 	memcpy(tM, data, size);
+	// add the "1" bit at the end of the message
 	memset(tM + size, 128, 1);
 	memset(tM + size + 1, 0, (padding_size / 8));
 	uint64_t len = (size * 8); // endianness ... -.-
 	SHA256Util::byte_swap_64(&len); // swap endianess :D
 	memcpy(tM + size + 1 + (padding_size / 8), &len, 8);
+	// now look at the memory of tM - i recomend doing it side by side with the description.
 
 	// unpleasant necessary conversions
 	uint32_t* M = (uint32_t*)tM;
@@ -152,7 +220,7 @@ SHA256Hash SHA256(const void * data, const unsigned int size)
 	// careful - heavy indexing
 	for (unsigned int k = 0; k < no_blocks; k++)
 	{
-		// calculate w (see description : http://www.iwar.org.uk/comsec/resources/cipher/sha256-384-512.pdf page 8)
+		// calculate w (see description : https://www.iwar.org.uk/comsec/resources/cipher/sha256-384-512.pdf page 8)
 		for (uint8_t j = 0; j < 16; j++)
 		{
 			// fuckin endianess

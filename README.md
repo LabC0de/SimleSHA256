@@ -1,5 +1,5 @@
-#SHA25 For Dummys
-##A naive straight forward implementation of the SHA256 algorithm in C++
+# SHA25 For Dummys
+## A naive straight forward implementation of the SHA256 algorithm in C++
 ---
 
 This is a simple implementation of SHA256. I basically followed [this](http://www.iwar.org.uk/comsec/resources/cipher/sha256-384-512.pdf) description word for word.
